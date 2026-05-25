@@ -499,6 +499,13 @@ pytest examples/ -v
 
 ## Current Limitations
 
+> **Note**
+> Botwright cannot drive slash-only command surfaces. For better e2e coverage,
+> prefer `discord.py` hybrid commands and hybrid groups, or keep command
+> behavior in shared application code that both slash and prefix handlers call.
+> Botwright can then exercise the prefix path while still covering the
+> underlying command logic.
+
 - Slash commands are not supported. Discord does not allow one bot account to
   invoke another bot's slash commands through the public bot API.
 - Component clicks, select menus, and modals are not implemented. They require
