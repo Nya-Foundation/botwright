@@ -1,6 +1,6 @@
 [project]
 name = "botwright"
-version = "0.1.0"
+dynamic = ["version"]
 description = "End-to-end test framework for Discord bots, built on discord.py."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,10 +25,9 @@ dependencies = [
     "discord-py>=2.7.1",
     "pytest>=8",
     "pytest-asyncio>=0.24",
-    "python-dotenv>=1.0",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "black>=26.5.1",
     "isort>=8.0.1",
@@ -48,6 +47,9 @@ botwright = "botwright.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/botwright/_version.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/botwright"]
 
@@ -59,7 +61,7 @@ testpaths = ["tests"]
 
 [tool.black]
 line-length = 100
-target-version = ["py39"]
+target-version = ["py310"]
 
 [tool.isort]
 profile = "black"
@@ -67,7 +69,7 @@ line_length = 100
 
 
 [tool.coverage.run]
-source = ["nacho"]
+source = ["src/botwright"]
 omit = ["tests/*"]
 
 [tool.coverage.report]
@@ -85,8 +87,8 @@ exclude_lines = [
 [tool.semantic_release]
 tag_format = "v{version}"
 version_toml = ["pyproject.toml:project.version"]
-version_variables = ["nacho/_version.py:__version__"]
-build_command = "python -m pip install build && python -m build"
+version_variables = ["src/botwright/_version.py:__version__"]
+build_command = "uv build"
 commit_parser = "conventional"
 commit_message = "chore(release): bump version to v{version} [skip ci]"
 commit_author = "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"

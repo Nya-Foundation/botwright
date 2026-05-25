@@ -83,7 +83,7 @@ if message.author.bot and os.getenv("TEST_MODE") != "1":
 
 ## Configuration
 
-Botwright reads environment variables and `.env` files through `python-dotenv`.
+Botwright reads environment variables 
 
 Required:
 
