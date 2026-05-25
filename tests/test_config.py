@@ -5,8 +5,7 @@ from botwright.exceptions import BotwrightConfigError
 
 
 @pytest.fixture(autouse=True)
-def no_dotenv(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("botwright.config.load_dotenv", lambda: False)
+def no_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("BOTWRIGHT_CHANNEL_ID", raising=False)
     monkeypatch.delenv("BOTWRIGHT_CHANNEL_PREFIX", raising=False)
     monkeypatch.delenv("BOTWRIGHT_READY_TIMEOUT", raising=False)
