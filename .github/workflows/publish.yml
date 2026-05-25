@@ -72,10 +72,6 @@ jobs:
         fetch-depth: 0
         persist-credentials: true
 
-    # Install uv
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-
     # Setup Python - semantic-release might need it or specific tools
     - name: Set up Python
       uses: actions/setup-python@v5
