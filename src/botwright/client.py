@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict
 from contextlib import suppress
-from typing import Callable
+from inspect import isawaitable
+from typing import Any, Callable
 
 import discord
 
@@ -10,6 +12,7 @@ from .exceptions import BotwrightStartupError
 from .hub import MessageHub
 
 StatusCallback = Callable[[str], None]
+EventListener = Callable[..., Any]
 
 
 class TesterBot(discord.Client):
@@ -24,6 +27,7 @@ class TesterBot(discord.Client):
         self._botwright_ready = asyncio.Event()
         self._runner: asyncio.Task[None] | None = None
         self._status: StatusCallback | None = None
+        self._listeners: dict[str, list[EventListener]] = defaultdict(list)
         self.message_hub = MessageHub()
 
     async def on_ready(self) -> None:
@@ -31,9 +35,25 @@ class TesterBot(discord.Client):
 
     async def on_message(self, message: discord.Message) -> None:
         self.message_hub.dispatch(message)
+        await self._notify_listeners("on_message", message)
 
     async def on_socket_event_type(self, event_type: str) -> None:
         self.message_hub.record_gateway_event(event_type)
+        await self._notify_listeners("on_socket_event_type", event_type)
+
+    def add_listener(self, func: EventListener, name: str | None = None) -> None:
+        self._listeners[name or func.__name__].append(func)
+
+    def remove_listener(self, func: EventListener, name: str | None = None) -> None:
+        listeners = self._listeners.get(name or func.__name__)
+        if listeners is None:
+            return
+
+        with suppress(ValueError):
+            listeners.remove(func)
+
+        if not listeners:
+            self._listeners.pop(name or func.__name__, None)
 
     async def start_in_background(
         self,
@@ -69,9 +89,7 @@ class TesterBot(discord.Client):
             for task in (self._runner, ready_task):
                 with suppress(asyncio.CancelledError):
                     await task
-            raise BotwrightStartupError(
-                f"Tester bot did not become ready within {timeout}s"
-            )
+            raise BotwrightStartupError(f"Tester bot did not become ready within {timeout}s")
 
         if ready_task in pending:
             ready_task.cancel()
@@ -98,6 +116,12 @@ class TesterBot(discord.Client):
     def _emit(self, message: str) -> None:
         if self._status is not None:
             self._status(message)
+
+    async def _notify_listeners(self, name: str, *args: object) -> None:
+        for listener in list(self._listeners.get(name, ())):
+            result = listener(*args)
+            if isawaitable(result):
+                await result
 
     def _log_runner_failure(self, task: asyncio.Task[None]) -> None:
         if task.cancelled():

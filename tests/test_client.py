@@ -13,12 +13,26 @@ async def test_tester_bot_dispatches_messages_to_hub() -> None:
     bot = TesterBot()
 
     waiter = bot.message_hub.register(10, lambda message: None)
-    await bot.on_message(
-        SimpleNamespace(channel=SimpleNamespace(id=10), content="hello")
-    )
+    await bot.on_message(SimpleNamespace(channel=SimpleNamespace(id=10), content="hello"))
 
     assert waiter.future.result().content == "hello"
     assert bot.message_hub.stats.message_count == 1
+
+
+@pytest.mark.asyncio
+async def test_tester_bot_supports_message_listeners() -> None:
+    bot = TesterBot()
+    observed: list[str] = []
+
+    async def listener(message: SimpleNamespace) -> None:
+        observed.append(message.content)
+
+    bot.add_listener(listener, "on_message")
+    await bot.on_message(SimpleNamespace(channel=SimpleNamespace(id=10), content="hello"))
+    bot.remove_listener(listener, "on_message")
+    await bot.on_message(SimpleNamespace(channel=SimpleNamespace(id=10), content="ignored"))
+
+    assert observed == ["hello"]
 
 
 @pytest.mark.asyncio
