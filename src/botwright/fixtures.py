@@ -7,8 +7,8 @@ import discord
 import pytest
 import pytest_asyncio
 
-from .client import TesterBot
 from .branding import BOTWRIGHT_BANNER
+from .client import TesterBot
 from .config import BotwrightConfig
 from .exceptions import BotwrightConfigError
 from .runtime import (
