@@ -1,6 +1,25 @@
 # CHANGELOG
 
 
+## v0.1.2 (2026-05-25)
+
+### Bug Fixes
+
+- Update publish.yml with uv
+  ([`f60750f`](https://github.com/Nya-Foundation/botwright/commit/f60750f7aeaf25dd652187ba43e3176355e119ea))
+
+- Update version, remove python-dotenv dep
+  ([`14c4482`](https://github.com/Nya-Foundation/botwright/commit/14c4482fb6a3e9d9c4f1011f996f519ffc294de5))
+
+### Chores
+
+- Update publish.yml
+  ([`4a8fd76`](https://github.com/Nya-Foundation/botwright/commit/4a8fd76c8f6e2286c5c0655977eb4a794e5cf3cf))
+
+- **format**: Apply automatic formatting [skip ci]
+  ([`9bc5c46`](https://github.com/Nya-Foundation/botwright/commit/9bc5c46e61116c8cd1a7d67bbb93e28cfa3e8ee9))
+
+
 ## v0.1.1 (2026-05-25)
 
 ### Bug Fixes

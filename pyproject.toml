@@ -43,6 +43,7 @@ botwright = "botwright.plugin"
 [project.scripts]
 botwright = "botwright.cli:main"
 
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
