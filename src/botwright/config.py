@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Literal
+
 from .exceptions import BotwrightConfigError
 
 KeepChannels = Literal["never", "failed", "always"]
