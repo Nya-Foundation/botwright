@@ -4,8 +4,6 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
-from dotenv import load_dotenv
-
 from .exceptions import BotwrightConfigError
 
 KeepChannels = Literal["never", "failed", "always"]
@@ -32,7 +30,6 @@ class BotwrightConfig:
         default_timeout: float | None = None,
         keep_channels: KeepChannels | None = None,
     ) -> "BotwrightConfig":
-        load_dotenv()
         token = os.getenv("BOTWRIGHT_TESTER_TOKEN")
         guild = os.getenv("BOTWRIGHT_GUILD_ID")
         target = os.getenv("BOTWRIGHT_TARGET_BOT_ID")
@@ -89,8 +86,7 @@ class BotwrightConfig:
             guild_id=guild_id,
             target_bot_id=target_id,
             channel_id=resolved_channel_id,
-            channel_prefix=channel_prefix
-            or os.getenv("BOTWRIGHT_CHANNEL_PREFIX", "botwright-"),
+            channel_prefix=channel_prefix or os.getenv("BOTWRIGHT_CHANNEL_PREFIX", "botwright-"),
             ready_timeout=resolved_ready_timeout,
             default_timeout=resolved_default_timeout,
             keep_channels=resolved_keep_channels,
