@@ -2,7 +2,7 @@
 # 
 # Standard Publish Workflow for Nya Foundation
 # 
-# This workflow handles the full CI/CD pipeline for Nacho:
+# This workflow handles the full CI/CD pipeline for Botwright:
 # 1. Runs tests and checks
 # 2. Uses semantic-release to automatically version the project based on commit messages
 # 3. Publishes the package to PyPI
@@ -16,8 +16,8 @@
 # - DOCKERHUB_TOKEN: Access token for Docker Hub (not password)
 #
 # Optional Variables (set in repository variables):
-# - GCR_IMAGE_NAME: Image name for GitHub Container Registry (example: nya-foundation/nacho)
-# - DOCKERHUB_IMAGE_NAME: Image name for Docker Hub (example: k3scat/nacho)
+# - GCR_IMAGE_NAME: Image name for GitHub Container Registry (example: nya-foundation/botwright)
+# - DOCKERHUB_IMAGE_NAME: Image name for Docker Hub (example: k3scat/botwright)
 #
 # Permissions needed:
 # - contents: write (for creating GitHub releases)
@@ -31,7 +31,7 @@ on:
     branches:
       - main # Trigger release only on pushes to main
     paths:
-    - 'nacho/**'
+    - 'src/**'
     - 'tests/**'
     - 'pyproject.toml'
     - 'uv.lock'
@@ -177,10 +177,10 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         labels: |
-          org.opencontainers.image.title=Nacho
+          org.opencontainers.image.title=Botwright
           org.opencontainers.image.description=Lightweight, schema-first dynamic configuration service
-          org.opencontainers.image.url=https://github.com/Nya-Foundation/nacho
-          org.opencontainers.image.source=https://github.com/Nya-Foundation/nacho
+          org.opencontainers.image.url=https://github.com/Nya-Foundation/botwright
+          org.opencontainers.image.source=https://github.com/Nya-Foundation/botwright
           org.opencontainers.image.version=${{ steps.get-version.outputs.version }}
           org.opencontainers.image.created=${{ github.event.repository.updated_at }}
           org.opencontainers.image.revision=${{ github.sha }}
