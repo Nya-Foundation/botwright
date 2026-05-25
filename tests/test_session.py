@@ -21,6 +21,7 @@ def message(channel_id: int, author_id: int, content: str = "") -> SimpleNamespa
 class FakeBot:
     def __init__(self) -> None:
         self.message_hub = MessageHub()
+        self.user = SimpleNamespace(id=1)
 
     async def dispatch(self, candidate: SimpleNamespace) -> None:
         self.message_hub.dispatch(candidate)
@@ -51,6 +52,18 @@ class FakeChannel:
             items = list(reversed(items))
         for item in items:
             yield item
+
+
+class FakeReactionMessage:
+    def __init__(self) -> None:
+        self.added: list[str] = []
+        self.removed: list[tuple[str, object]] = []
+
+    async def add_reaction(self, emoji: str) -> None:
+        self.added.append(emoji)
+
+    async def remove_reaction(self, emoji: str, member: object) -> None:
+        self.removed.append((emoji, member))
 
 
 @pytest.mark.asyncio
@@ -124,6 +137,43 @@ async def test_wait_for_message_can_match_any_author() -> None:
 
 
 @pytest.mark.asyncio
+async def test_wait_for_message_can_match_a_specific_channel() -> None:
+    bot = FakeBot()
+    session = TestSession(bot, FakeChannel(bot), target_bot_id=20)
+    task = asyncio.create_task(session.wait_for_message(channel_id=11))
+    await asyncio.sleep(0)
+
+    await bot.dispatch(message(10, 20, "wrong channel"))
+    await bot.dispatch(message(11, 20, "cross-channel side effect"))
+
+    reply = await task
+    assert reply.channel.id == 11
+    assert reply.content == "cross-channel side effect"
+
+
+@pytest.mark.asyncio
+async def test_wait_for_message_can_match_any_channel() -> None:
+    bot = FakeBot()
+    session = TestSession(bot, FakeChannel(bot), target_bot_id=20)
+    task = asyncio.create_task(session.wait_for_message(any_channel=True))
+    await asyncio.sleep(0)
+
+    await bot.dispatch(message(11, 20, "from another channel"))
+
+    reply = await task
+    assert reply.channel.id == 11
+    assert reply.content == "from another channel"
+
+
+def test_wait_for_message_rejects_conflicting_channel_options() -> None:
+    bot = FakeBot()
+    session = TestSession(bot, FakeChannel(bot), target_bot_id=20)
+
+    with pytest.raises(ValueError, match="channel_id and any_channel"):
+        session._wait_channel_id(channel_id=10, any_channel=True)
+
+
+@pytest.mark.asyncio
 async def test_wait_for_message_raises_botwright_timeout() -> None:
     bot = FakeBot()
     session = TestSession(bot, FakeChannel(bot), target_bot_id=20)
@@ -139,6 +189,19 @@ def test_session_accepts_default_timeout() -> None:
     assert session.default_timeout == 2.5
     assert session._timeout(None) == 2.5
     assert session._timeout(1.0) == 1.0
+
+
+@pytest.mark.asyncio
+async def test_reaction_helpers_use_tester_bot_identity() -> None:
+    bot = FakeBot()
+    session = TestSession(bot, FakeChannel(bot), target_bot_id=20)
+    candidate = FakeReactionMessage()
+
+    await session.add_reaction(candidate, "thumbsup")  # type: ignore[arg-type]
+    await session.remove_reaction(candidate, "thumbsup")  # type: ignore[arg-type]
+
+    assert candidate.added == ["thumbsup"]
+    assert candidate.removed == [("thumbsup", bot.user)]
 
 
 def test_describe_message_includes_embed_summary() -> None:
