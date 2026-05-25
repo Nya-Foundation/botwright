@@ -49,19 +49,43 @@ class TestSession:
     async def send(self, content: str) -> discord.Message:
         return await self.channel.send(content)
 
+    async def add_reaction(
+        self,
+        message: discord.Message,
+        emoji: str | discord.Emoji | discord.PartialEmoji | discord.Reaction,
+    ) -> None:
+        await message.add_reaction(emoji)
+
+    async def remove_reaction(
+        self,
+        message: discord.Message,
+        emoji: str | discord.Emoji | discord.PartialEmoji | discord.Reaction,
+    ) -> None:
+        if self.bot.user is None:
+            raise RuntimeError("Tester bot user is unavailable")
+        await message.remove_reaction(emoji, self.bot.user)
+
     async def wait_for_message(
         self,
         from_user_id: AuthorId = None,
         predicate: MessagePredicate | None = None,
         timeout: float | None = None,
+        channel_id: int | None = None,
+        any_channel: bool = False,
     ) -> discord.Message:
-        waiter = self._register_waiter(from_user_id, predicate)
+        wait_channel_id = self._wait_channel_id(channel_id, any_channel)
+        waiter = self._register_waiter(
+            from_user_id,
+            predicate,
+            wait_channel_id=wait_channel_id,
+        )
         try:
             return await self._await_waiter(
                 waiter,
                 kind="message",
                 timeout=self._timeout(timeout),
                 from_user_id=from_user_id,
+                wait_channel_id=wait_channel_id,
             )
         finally:
             self.bot.message_hub.unregister(waiter)
@@ -72,6 +96,8 @@ class TestSession:
         from_user_id: AuthorId = None,
         predicate: MessagePredicate | None = None,
         timeout: float | None = None,
+        channel_id: int | None = None,
+        any_channel: bool = False,
     ) -> AsyncIterator[MessageHandle]:
         handle = MessageHandle()
         async with self._expect(
@@ -80,6 +106,7 @@ class TestSession:
             from_user_id=from_user_id,
             predicate=predicate,
             timeout=self._timeout(timeout),
+            wait_channel_id=self._wait_channel_id(channel_id, any_channel),
         ):
             yield handle
 
@@ -89,6 +116,8 @@ class TestSession:
         from_user_id: AuthorId = None,
         predicate: MessagePredicate | None = None,
         timeout: float | None = None,
+        channel_id: int | None = None,
+        any_channel: bool = False,
     ) -> AsyncIterator[ReplyHandle]:
         handle = ReplyHandle()
         async with self._expect(
@@ -97,6 +126,7 @@ class TestSession:
             from_user_id=from_user_id,
             predicate=predicate,
             timeout=self._timeout(timeout),
+            wait_channel_id=self._wait_channel_id(channel_id, any_channel),
         ):
             yield handle
 
@@ -106,11 +136,15 @@ class TestSession:
         from_user_id: AuthorId = None,
         predicate: MessagePredicate | None = None,
         timeout: float | None = None,
+        channel_id: int | None = None,
+        any_channel: bool = False,
     ) -> discord.Message:
         async with self.expect_reply(
             from_user_id=from_user_id,
             predicate=predicate,
             timeout=timeout,
+            channel_id=channel_id,
+            any_channel=any_channel,
         ) as reply:
             await self.send(content)
         assert reply.value is not None
@@ -118,6 +152,17 @@ class TestSession:
 
     def _timeout(self, timeout: float | None) -> float:
         return self.default_timeout if timeout is None else timeout
+
+    def _wait_channel_id(
+        self,
+        channel_id: int | None,
+        any_channel: bool,
+    ) -> int | None:
+        if any_channel and channel_id is not None:
+            raise ValueError("channel_id and any_channel cannot be used together")
+        if any_channel:
+            return None
+        return self.channel.id if channel_id is None else channel_id
 
     @asynccontextmanager
     async def _expect(
@@ -128,8 +173,13 @@ class TestSession:
         from_user_id: AuthorId,
         predicate: MessagePredicate | None,
         timeout: float,
+        wait_channel_id: int | None,
     ) -> AsyncIterator[None]:
-        waiter = self._register_waiter(from_user_id, predicate)
+        waiter = self._register_waiter(
+            from_user_id,
+            predicate,
+            wait_channel_id=wait_channel_id,
+        )
         try:
             yield
             handle.value = await self._await_waiter(
@@ -137,6 +187,7 @@ class TestSession:
                 kind=kind,
                 timeout=timeout,
                 from_user_id=from_user_id,
+                wait_channel_id=wait_channel_id,
             )
         finally:
             self.bot.message_hub.unregister(waiter)
@@ -145,10 +196,17 @@ class TestSession:
         self,
         from_user_id: AuthorId,
         predicate: MessagePredicate | None,
+        *,
+        wait_channel_id: int | None,
     ) -> MessageWaiter:
         return self.bot.message_hub.register(
-            self.channel.id,
-            lambda message: self._reject_reason(message, from_user_id, predicate),
+            wait_channel_id,
+            lambda message: self._reject_reason(
+                message,
+                from_user_id,
+                predicate,
+                wait_channel_id=wait_channel_id,
+            ),
         )
 
     async def _await_waiter(
@@ -158,6 +216,7 @@ class TestSession:
         kind: str,
         timeout: float,
         from_user_id: AuthorId,
+        wait_channel_id: int | None,
     ) -> discord.Message:
         try:
             return await asyncio.wait_for(waiter.future, timeout=timeout)
@@ -166,6 +225,7 @@ class TestSession:
                 kind=kind,
                 timeout=timeout,
                 from_user_id=from_user_id,
+                wait_channel_id=wait_channel_id,
                 observed=waiter.observed,
             )
             raise BotwrightTimeout(message) from e
@@ -175,11 +235,13 @@ class TestSession:
         message: discord.Message,
         from_user_id: AuthorId,
         predicate: MessagePredicate | None,
+        *,
+        wait_channel_id: int | None,
     ) -> str | None:
         expected_author = self._expected_author(from_user_id)
 
-        if message.channel.id != self.channel.id:
-            return f"wrong channel: expected {self.channel.id}, got {message.channel.id}"
+        if wait_channel_id is not None and message.channel.id != wait_channel_id:
+            return f"wrong channel: expected {wait_channel_id}, got {message.channel.id}"
         if expected_author is not ANY_AUTHOR and message.author.id != expected_author:
             return f"wrong author: expected {expected_author}, got {message.author.id}"
         if predicate is not None and not predicate(message):
@@ -204,14 +266,15 @@ class TestSession:
         kind: str,
         timeout: float,
         from_user_id: AuthorId,
+        wait_channel_id: int | None,
         observed: Iterable[ObservedMessage],
     ) -> str:
         expected_author = self._expected_author(from_user_id)
         stats = self.bot.message_hub.stats
         observed_messages = list(observed)
         lines = [
-            f"No matching {kind} in #{self.channel.name} within {timeout}s",
-            f"Expected channel_id={self.channel.id}, "
+            f"No matching {kind} in {self._format_channel(wait_channel_id)} within {timeout}s",
+            f"Expected channel_id={self._format_channel_id(wait_channel_id)}, "
             f"author_id={self._format_author(expected_author)}",
             "Gateway counters: "
             f"events={stats.gateway_event_count}, "
@@ -225,7 +288,7 @@ class TestSession:
         for item in observed_messages[-5:]:
             lines.append(f"- {item.reason}: {self._describe_message(item.message)}")
 
-        recent = await self._recent_channel_history()
+        recent = await self._recent_channel_history(wait_channel_id)
         if recent:
             lines.append("Recent channel history:")
             for message in recent:
@@ -235,11 +298,45 @@ class TestSession:
 
         return "\n".join(lines)
 
-    async def _recent_channel_history(self, limit: int = 5) -> list[discord.Message]:
+    async def _recent_channel_history(
+        self,
+        channel_id: int | None,
+        limit: int = 5,
+    ) -> list[discord.Message]:
+        channel = self._history_channel(channel_id)
+        if channel is None:
+            return []
         try:
-            return [message async for message in self.channel.history(limit=limit)]
+            return [message async for message in channel.history(limit=limit)]
         except (AttributeError, discord.HTTPException):
             return []
+
+    def _history_channel(self, channel_id: int | None) -> object | None:
+        if channel_id is None:
+            return None
+        if channel_id == self.channel.id:
+            return self.channel
+
+        get_channel = getattr(self.bot, "get_channel", None)
+        if get_channel is None:
+            return None
+
+        channel = get_channel(channel_id)
+        if hasattr(channel, "history"):
+            return channel
+        return None
+
+    def _format_channel(self, channel_id: int | None) -> str:
+        if channel_id is None:
+            return "any channel"
+        if channel_id == self.channel.id:
+            return f"#{self.channel.name}"
+        return f"channel {channel_id}"
+
+    def _format_channel_id(self, channel_id: int | None) -> str:
+        if channel_id is None:
+            return "any"
+        return str(channel_id)
 
     def _describe_message(self, message: discord.Message) -> str:
         channel = getattr(message, "channel", None)
@@ -256,8 +353,7 @@ class TestSession:
         author_name = str(author) if author is not None else "?"
 
         description = (
-            f"#{channel_name} ({channel_id}) from {author_name} ({author_id}): "
-            f"{content!r}"
+            f"#{channel_name} ({channel_id}) from {author_name} ({author_id}): " f"{content!r}"
         )
 
         if embeds:

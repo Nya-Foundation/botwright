@@ -68,6 +68,7 @@ Create two bots in the same dedicated test guild:
 The tester bot needs:
 
 - `Send Messages`
+- `Add Reactions` if tests use reaction helpers
 - `Read Message History`
 - `View Channel`
 - `Manage Channels` if Botwright will create temporary channels
@@ -200,6 +201,43 @@ async def test_anyone_can_trigger_audit_log(session: TestSession):
     assert message.channel.id == session.channel.id
 ```
 
+Use `channel_id=` when a command writes to another channel, or
+`any_channel=True` when the channel is part of the assertion:
+
+```python
+@pytest.mark.asyncio
+async def test_audit_log_side_effect(session: TestSession):
+    await session.send("!warn @member")
+
+    audit = await session.wait_for_message(
+        channel_id=123456789012345678,
+        predicate=lambda msg: "warned" in msg.content.lower(),
+    )
+
+    assert audit.author.id == session.target_bot_id
+```
+
+The same channel options are available on `expect_message()`, `expect_reply()`,
+and `send_and_wait()`.
+
+### Reactions
+
+Use `add_reaction()` and `remove_reaction()` when your target bot responds to
+message reactions, such as react-role flows:
+
+```python
+@pytest.mark.asyncio
+async def test_react_role(session: TestSession):
+    panel = await session.wait_for_message(predicate=lambda msg: msg.embeds)
+
+    await session.add_reaction(panel, "<:thumbsup:123456789012345678>")
+
+    confirmation = await session.wait_for_message(
+        predicate=lambda msg: "role added" in msg.content.lower(),
+    )
+    assert confirmation.author.id == session.target_bot_id
+```
+
 ## Fixed-Channel Mode
 
 By default, Botwright creates a temporary channel for each test and deletes it
@@ -269,7 +307,7 @@ Fixtures:
 | Fixture | Scope | Description |
 | --- | --- | --- |
 | `botwright_config` | session | Validated Botwright configuration. |
-| `tester_bot` | session | Connected tester `discord.Client`. |
+| `tester_bot` | session | Connected tester `TesterBot`. |
 | `test_channel` | function | Temporary or configured text channel. |
 | `session` | function | `TestSession` bound to the current channel. |
 
@@ -311,6 +349,28 @@ fixtures. That means each worker starts its own tester bot. For now, run
 Botwright tests without xdist unless you intentionally partition channels and
 bot accounts per worker.
 
+`TesterBot` is a small `discord.Client` subclass. It exposes
+`add_listener()` and `remove_listener()` for off-channel observation without
+dropping into `wait_for()` manually:
+
+```python
+@pytest.mark.asyncio
+async def test_observes_raw_messages(session: TestSession):
+    seen = []
+
+    async def on_message(message):
+        seen.append(message)
+
+    session.bot.add_listener(on_message, "on_message")
+    try:
+        await session.send("!fanout")
+        await session.wait_for_message(any_channel=True)
+    finally:
+        session.bot.remove_listener(on_message, "on_message")
+
+    assert seen
+```
+
 ### Per-test marker
 
 Use `@pytest.mark.botwright(...)` to override settings for one test:
@@ -344,9 +404,15 @@ Supported marker arguments:
 : Send a message as the tester bot. Returns the tester bot's
 `discord.Message`.
 
-`await session.wait_for_message(from_user_id=None, predicate=None, timeout=None)`
-: Wait for a matching message in the current channel. By default, waits for the
-configured target bot.
+`await session.add_reaction(message, emoji)`
+: Add a reaction as the tester bot.
+
+`await session.remove_reaction(message, emoji)`
+: Remove the tester bot's reaction from a message.
+
+`await session.wait_for_message(from_user_id=None, predicate=None, timeout=None, channel_id=None, any_channel=False)`
+: Wait for a matching message. By default, waits for the configured target bot
+in the current channel.
 
 `async with session.expect_message(...) as message`
 : Register a message waiter before the code inside the context block runs.
@@ -357,7 +423,7 @@ The resulting message is available as `message.value` after the block exits.
 waiter machinery as `expect_message()`, but reads better in request-response
 tests.
 
-`await session.send_and_wait(content, from_user_id=None, predicate=None, timeout=None)`
+`await session.send_and_wait(content, from_user_id=None, predicate=None, timeout=None, channel_id=None, any_channel=False)`
 : Register a reply waiter, send a message, and return the matching response.
 
 Predicates receive a real `discord.Message`:
@@ -435,7 +501,27 @@ pytest examples/ -v
 
 - Slash commands are not supported. Discord does not allow one bot account to
   invoke another bot's slash commands through the public bot API.
-- Botwright currently focuses on text messages. Reactions, components, modals,
-  and voice workflows are future API candidates.
+- Component clicks, select menus, and modals are not implemented. They require
+  interaction requests that discord.py does not expose for bot-to-bot testing as
+  a stable public API.
+- Member join, role, and voice gateway events are not synthesized for the
+  target bot. Prefer testing those with in-process unit tests, or with an
+  explicit external setup step that changes real Discord state.
 - Fixed-channel tests are not isolated unless your test design makes them
   isolated.
+
+For bots with caches or external state, seed the SDK or database first, then use
+an explicit Discord assertion that proves the target bot observed the new state:
+
+```python
+@pytest.mark.asyncio
+async def test_seeded_plan_status(session: TestSession, plana_sdk):
+    plan = await plana_sdk.create_plan(name="launch")
+
+    status = await session.send_and_wait(
+        f"!plan status {plan.id}",
+        predicate=lambda msg: "launch" in msg.content.lower(),
+    )
+
+    assert status.author.id == session.target_bot_id
+```
