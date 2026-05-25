@@ -1,8 +1,6 @@
 # Botwright
 
-<div align="center">
-
-<pre>
+```text
  ____        _                  _       _     _
 | __ )  ___ | |___      ___ __ (_) __ _| |__ | |_
 |  _ \ / _ \| __\ \ /\ / / '__|| |/ _` | '_ \| __|
@@ -11,9 +9,7 @@
                                   |___/
 
 Discord bot e2e tests through real channels, real messages, real assertions.
-</pre>
-
-</div>
+```
 
 End-to-end testing for Discord bots, built on `discord.py` and pytest.
 
