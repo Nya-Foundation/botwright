@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.0 (2026-05-25)
+
+### Features
+
+- Add support for add/remove reaction
+  ([`a812584`](https://github.com/Nya-Foundation/botwright/commit/a812584eb2e5e812fab7686a822165d79bbed60b))
+
+
 ## v0.1.2 (2026-05-25)
 
 ### Bug Fixes
